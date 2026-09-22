@@ -21,6 +21,20 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const uid = () => 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ------------------------------------------------------------------ chef name */
+const NAME_PARTS = ['Palm', 'Frond', 'Coco', 'Grill', 'Sprout', 'Areca', 'Bistro', 'Toque', 'Basil', 'Ember', 'Sago', 'Dune'];
+let chefName = localStorage.getItem('pk-chef-name');
+if (!chefName) {
+  chefName = 'Chef ' + pick(NAME_PARTS) + ' ' + Math.floor(Math.random() * 90 + 10);
+  localStorage.setItem('pk-chef-name', chefName);
+}
+function currentName() {
+  const v = ($('#order-name')?.value || '').trim().slice(0, 24);
+  return v || chefName;
+}
 
 /* ------------------------------------------------------------------ stations */
 const STATIONS = [
@@ -242,6 +256,7 @@ function renderTickets(sim) {
       <div class="t-icon">${r.icon}</div>
       <div class="t-body">
         <div class="t-name">${r.name} <span class="t-num">#${num}${tag}</span></div>
+        <div class="t-by">Ordered by: ${esc(t.by || 'the house')}</div>
         <div class="t-steps">${dots}</div>
       </div>
       <div class="t-status ${t.status === 'served' ? 'done' : ''}">${t.status === 'served' ? 'SERVED' : t.status.toUpperCase()}</div>`;
@@ -293,6 +308,8 @@ function netChip() {
   const [c, label] = map[NET.status] || map.off;
   const n = NET.peers.size + 1;
   el.innerHTML = `<span class="net-dot" style="background:${c}"></span>${label}${NET.status === 'live' ? ` · ${n} chef${n > 1 ? 's' : ''}` : ''}`;
+  const names = [currentName(), ...[...NET.peers.values()].map(p => p.name).filter(Boolean)];
+  el.title = 'On the rail: ' + names.join(', ');   // plain-text attribute, safe
 }
 function netPublish(topic, obj, opts) {
   if (NET.status !== 'live' || !NET.client) return;
@@ -305,13 +322,18 @@ function isLeader() {
 function ordersSnapshot() {
   return [...worldOrders.values()]
     .filter(o => Date.now() - o.at < SIM_WINDOW)
-    .map(o => ({ id: o.id, key: o.key, at: o.at }));
+    .map(o => ({ id: o.id, key: o.key, at: o.at, by: o.by || null }));
+}
+function cleanName(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().slice(0, 24);
+  return s || null;
 }
 function mergeOrder(o, origin) {
   if (!o || typeof o.id !== 'string' || !recipeByKey(o.key) || typeof o.at !== 'number') return false;
   if (Math.abs(o.at - Date.now()) > SIM_WINDOW * 6) return false;   // absurd clock → ignore
   if (worldOrders.has(o.id)) return false;
-  worldOrders.set(o.id, { id: o.id, key: o.key, at: o.at, origin });
+  worldOrders.set(o.id, { id: o.id, key: o.key, at: o.at, origin, by: cleanName(o.by) || 'a visitor' });
   return true;
 }
 function onNetMessage(topic, payload) {
@@ -321,12 +343,13 @@ function onNetMessage(topic, payload) {
   if (topic === NET.topics.orders && m.type === 'order' && m.order) {
     if (mergeOrder(m.order, 'remote')) {
       const r = recipeByKey(m.order.key);
-      log(`🎟 ${r.icon} ${r.name} clipped by a visitor 🌐`, 'order');
+      const who = cleanName(m.order.by) || 'a visitor';
+      log(`🎟 ${r.icon} ${r.name} clipped by ${esc(who)} 🌐`, 'order');
       blip('order');
     }
   } else if (topic === NET.topics.state) {
     if (m.type === 'hb' && m.id) {
-      NET.peers.set(m.id, { ts: Date.now() });
+      NET.peers.set(m.id, { ts: Date.now(), name: cleanName(m.name) });
       netChip();
     } else if (m.type === 'sync-req' && m.id) {
       netPublish(NET.topics.state,
@@ -358,7 +381,7 @@ function netConnect() {
     c.subscribe(NET.topics.orders);
     c.subscribe(NET.topics.state);
     netPublish(NET.topics.state, { type: 'sync-req', id: NET.clientId, from: NET.clientId });
-    netPublish(NET.topics.state, { type: 'hb', id: NET.clientId, from: NET.clientId });
+    netPublish(NET.topics.state, { type: 'hb', id: NET.clientId, from: NET.clientId, name: currentName() });
     log(`World link up (${url.replace('wss://', '').split('/')[0]}) — sharing one kitchen.`, 'info');
   });
   c.on('message', onNetMessage);
@@ -380,7 +403,7 @@ function netTick(dt) {
   NET.hbT += dt; NET.worldT += dt;
   if (NET.hbT > 20) {
     NET.hbT = 0;
-    netPublish(NET.topics.state, { type: 'hb', id: NET.clientId, from: NET.clientId });
+    netPublish(NET.topics.state, { type: 'hb', id: NET.clientId, from: NET.clientId, name: currentName() });
   }
   // deterministic leader publishes a retained world snapshot for newcomers
   if (NET.worldT > 4 && isLeader()) {
@@ -398,10 +421,11 @@ function netTick(dt) {
 function submitOrder(key) {
   const r = recipeByKey(key);
   if (!r) return;
-  const o = { id: uid(), key: r.key, at: Date.now() };
+  const by = currentName();
+  const o = { id: uid(), key: r.key, at: Date.now(), by };
   worldOrders.set(o.id, { ...o, origin: 'local' });
   netPublish(NET.topics.orders, { type: 'order', from: NET.clientId, order: o });
-  log(`🎟 Ticket: ${r.icon} ${r.name} — sent to the shared rail.`, 'order');
+  log(`🎟 Ticket: ${r.icon} ${r.name} for ${esc(by)} — sent to the shared rail.`, 'order');
   blip('order');
 }
 
@@ -725,7 +749,8 @@ function observeTransitions(sim) {
       knownServed.add(id);
       const o = worldOrders.get(id);
       const name = o ? recipeByKey(o.key).name : (id.startsWith('amb') ? 'a house special' : 'an order');
-      log(`🍽 Served ${name} — nice plating, Poke.`, 'serve');
+      const who = o && o.by && o.by !== 'a visitor' ? ` for ${esc(o.by)}` : '';
+      log(`🍽 Served ${name}${who} — nice plating, Poke.`, 'serve');
       const st = stationById('plate');
       burst(st.x + st.w / 2, st.y + 30, 'sparkle', 26);
       blip('serve');
@@ -833,6 +858,16 @@ if (orderForm) {
     e.preventDefault();
     submitOrder(sel.value);
   });
+}
+
+const nameInput = $('#order-name');
+if (nameInput) {
+  nameInput.value = chefName;
+  nameInput.addEventListener('input', () => {
+    const v = nameInput.value.trim().slice(0, 24);
+    if (v) { chefName = v; localStorage.setItem('pk-chef-name', v); }
+  });
+  nameInput.addEventListener('keydown', e => e.stopPropagation());
 }
 
 /* ------------------------------------------------------------------ boot */

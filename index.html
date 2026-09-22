@@ -45,6 +45,8 @@
       <section class="panel terminal-panel">
         <h2>🧾 Order Terminal <span class="tt-hint">shared with all visitors</span></h2>
         <form id="order-form" class="order-form">
+          <input id="order-name" class="order-name" type="text" maxlength="24"
+                 placeholder="Chef name" aria-label="Ordered by — your chef name" autocomplete="off">
           <select id="order-select" aria-label="Pick a dish"></select>
           <button type="submit" class="tool-btn send-btn">Send to rail →</button>
         </form>
