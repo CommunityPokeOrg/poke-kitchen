@@ -7,14 +7,17 @@ A polished, autonomous 2D top-down virtual kitchen starring **Poke** — a cute 
 ## What's inside
 
 - **Autonomous/Bot Mode (default)** — Poke picks tickets off the rail, walks between stations with smooth interpolated movement, performs each recipe step with visible cooking animations, plates the dish, and serves it. Fully hands-free.
-- **Manual Mode** — click the floor to walk, click a station to use it, click a queued ticket to start it. The rail stays shared either way.
+- **Canonical shared simulation** — the world is a pure function of `(order set, Date.now())`. Every browser folds the same event timeline from unix epoch (walk → work → serve), so all visitors see the *same* Poke position, station, step progress, and served orders at any instant. Refreshing or opening a new tab tunes back into the live world — nothing restarts.
+- **Catch-up & convergence** — new clients instantly rebuild the shared order set from a **retained world snapshot** (published every 4 s by the lowest-client-id peer — a deterministic leader) on `communitypoke/kitchen/state`, plus `sync-req`/`sync-state` peer replies as backup.
+- **Ambient house tickets** — when the rail is quiet, deterministic filler orders materialize on a fixed epoch grid so the kitchen never sleeps, identically on every screen.
+- **Manual Mode** — a clearly-marked local sandbox: click the floor to walk, click a station to use it. The shared shift keeps running underneath; flip back to Autonomous to rejoin instantly.
 - **Six stations** — Cutting Board/Prep, Stove/Grill, Fryer (120kg batches · fry sauce pH 5.8), Taylor C602 (soft-serve & shakes — gets routine lubrication), Plating Counter, and the Order Ticket Rail.
 - **Five recipes** — Poke Smash Burger, 120kg Hot Fries, Compute Broth, Banana Bread, C602 Shake.
 - **Live ticket queue + kitchen log** — every action is timestamped and narrated.
 - **Shared real-time order rail** — no backend, no keys. Orders are published over **MQTT.js via secure WebSockets** (`wss://broker.hivemq.com:8884/mqtt`, falling back to `wss://broker.emqx.io:8084/mqtt`) on:
-  - `communitypoke/kitchen/orders` — new tickets, merged safely by order id (no duplicates)
-  - `communitypoke/kitchen/state` — heartbeats, visitor count, and sync-on-join so late visitors see the current rail
-  - Connection status is shown in the header; when offline or disconnected the app falls back to a purely local simulation.
+  - `communitypoke/kitchen/orders` — `{id, key, at}` order events, merged safely by order id (no duplicates)
+  - `communitypoke/kitchen/state` — heartbeats, visitor count, sync-on-join, retained world snapshot
+  - Connection status is shown in the header; when offline or disconnected the same engine runs on the local order set.
 
 ## Running locally
 
