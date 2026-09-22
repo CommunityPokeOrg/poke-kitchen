@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poke Kitchen — Poke's Autonomous Shift</title>
+<meta name="description" content="A top-down virtual kitchen where Poke the palm-tree chef autonomously cooks orders: burgers, 120kg fries, compute broth, banana bread and C602 shakes.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌴</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.4/dist/mqtt.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <span class="brand-palm">🌴</span>
+      <div>
+        <h1>Poke Kitchen</h1>
+        <span class="tagline">Poke's autonomous kitchen shift</span>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="mode-switch" role="group" aria-label="Control mode">
+        <button id="btn-auto" class="mode-btn active" title="Poke runs the shift himself">🤖 Autonomous</button>
+        <button id="btn-manual" class="mode-btn" title="Click to move and use stations">🖱 Manual</button>
+      </div>
+      <button id="btn-order" class="tool-btn" title="Clip a new order onto the rail">🎟 Ticket</button>
+      <button id="btn-sound" class="tool-btn" title="Toggle kitchen sounds">🔇 Sound</button>
+    </div>
+    <div class="stats">
+      <div class="stat net-stat"><span id="net-status" class="net-chip"><span class="net-dot"></span>OFF</span><label>rail link</label></div>
+      <div class="stat"><span id="stat-served">0</span><label>served</label></div>
+      <div class="stat"><span id="stat-queue">0</span><label>queued</label></div>
+      <div class="stat"><span id="stat-clock">00:00</span><label>shift</label></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="canvas-wrap">
+      <canvas id="game" width="960" height="620" aria-label="Top-down view of Poke's kitchen"></canvas>
+      <div id="tooltip" class="tooltip hidden"></div>
+      <div id="mode-hint" class="hidden">Manual mode — click the floor to walk, click a station to use it, click a ticket to start it.</div>
+    </div>
+    <aside>
+      <section class="panel terminal-panel">
+        <h2>🧾 Order Terminal <span class="tt-hint">shared with all visitors</span></h2>
+        <form id="order-form" class="order-form">
+          <select id="order-select" aria-label="Pick a dish"></select>
+          <button type="submit" class="tool-btn send-btn">Send to rail →</button>
+        </form>
+      </section>
+      <section class="panel tickets-panel">
+        <h2>🎟 Order Rail <span id="rail-count" class="pill">0</span></h2>
+        <div id="tickets" class="tickets empty">
+          <div class="empty-note">No orders yet — the rail is quiet.</div>
+        </div>
+      </section>
+      <section class="panel log-panel">
+        <h2>📋 Kitchen Log</h2>
+        <div id="log" class="log"></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer>
+    <span>Poke Kitchen — a tiny autonomous restaurant.</span>
+    <span class="footer-right">Prep · Grill · Fryer (120kg · pH 5.8) · Taylor C602 · Plating</span>
+  </footer>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>
